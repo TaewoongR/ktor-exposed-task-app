@@ -19,68 +19,70 @@ fun Application.configureSerialization(
         json()
     }
     routing {
-        get("/tasks") {
-            val tasks = repository.allTasks()
-            call.respond(tasks)
-        }
-
-        get("/byPriority/{priority}"){
-            val priorityAsText = call.parameters["priority"]
-            if(priorityAsText == null){
-                call.respond(HttpStatusCode.BadRequest)
-                return@get
+        route("/tasks") {
+            get {
+                val tasks = repository.allTasks()
+                call.respond(tasks)
             }
 
-            try{
-                val priority = Priority.valueOf(priorityAsText)
-                val tasks = repository.tasksByPriority(priority)
+            get("/byPriority/{priority}") {
+                val priorityAsText = call.parameters["priority"]
+                if (priorityAsText == null) {
+                    call.respond(HttpStatusCode.BadRequest)
+                    return@get
+                }
 
-                if(tasks.isEmpty()){
+                try {
+                    val priority = Priority.valueOf(priorityAsText)
+                    val tasks = repository.tasksByPriority(priority)
+
+                    if (tasks.isEmpty()) {
+                        call.respond(HttpStatusCode.NotFound)
+                        return@get
+                    }
+                    call.respond(tasks)
+                } catch (e: IllegalArgumentException) {
+                    call.respond(HttpStatusCode.BadRequest)
+                }
+            }
+
+            get("/byName/{taskName}") {
+                val taskNameAsText = call.parameters["taskName"]
+                if (taskNameAsText == null) {
+                    call.respond(HttpStatusCode.BadRequest)
+                    return@get
+                }
+                val task = repository.taskByName(taskNameAsText)
+                if (task == null) {
                     call.respond(HttpStatusCode.NotFound)
                     return@get
                 }
-                call.respond(tasks)
-            }catch (e: IllegalArgumentException){
-                call.respond(HttpStatusCode.BadRequest)
+                call.respond(task)
             }
-        }
 
-        get("/byName/{taskName}"){
-            val taskNameAsText = call.parameters["taskName"]
-            if(taskNameAsText == null){
-                call.respond(HttpStatusCode.BadRequest)
-                return@get
+            post {
+                try {
+                    val task = call.receive<Task>()
+                    repository.addTask(task)
+                    call.respond(HttpStatusCode.NoContent)
+                } catch (e: IllegalArgumentException) {
+                    call.respond(HttpStatusCode.BadRequest)
+                } catch (e: JsonConvertException) {
+                    call.respond(HttpStatusCode.BadRequest)
+                }
             }
-            val task = repository.taskByName(taskNameAsText)
-            if(task == null){
-                call.respond(HttpStatusCode.NotFound)
-                return@get
-            }
-            call.respond(task)
-        }
 
-        post{
-            try {
-                val task = call.receive<Task>()
-                repository.addTask(task)
-                call.respond(HttpStatusCode.NoContent)
-            }catch(e: IllegalArgumentException){
-                call.respond(HttpStatusCode.BadRequest)
-            }catch(e: JsonConvertException){
-                call.respond(HttpStatusCode.BadRequest)
-            }
-        }
-
-        delete("/{taskName}"){
-            val name = call.parameters["taskName"]
-            if(name == null){
-                call.respond(HttpStatusCode.BadRequest)
-                return@delete
-            }
-            if(repository.removeTask(name)){
-                call.respond(HttpStatusCode.NoContent)
-            }else{
-                call.respond(HttpStatusCode.NotFound)
+            delete("/{taskName}") {
+                val name = call.parameters["taskName"]
+                if (name == null) {
+                    call.respond(HttpStatusCode.BadRequest)
+                    return@delete
+                }
+                if (repository.removeTask(name)) {
+                    call.respond(HttpStatusCode.NoContent)
+                } else {
+                    call.respond(HttpStatusCode.NotFound)
+                }
             }
         }
     }
